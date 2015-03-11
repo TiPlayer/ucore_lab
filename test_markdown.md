@@ -15,7 +15,7 @@
 
 > 本Makefile最终的Targets是UCOREIMG  
 > 对应代码为
-> ```
+> ```makefile
 > UCOREIMG	:= $(call totarget,ucore.img)  
 > $(UCOREIMG): $(kernel) $(bootblock)  
 >	$(V)dd if=/dev/zero of=$@ count=10000  
