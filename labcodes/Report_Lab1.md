@@ -50,6 +50,7 @@
 > ```
 >  -Ikern/init/ -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc  -fno-stack-protector -Ilibs/ -Ikern/debug/ -Ikern/driver/ -Ikern/trap/ -Ikern/mm/
 > ```
+> 
 > 然后生成bootblock
 > > 对于bootblock生成代码如下
 > ```
@@ -75,6 +76,7 @@
 > ```
 > -Iboot/ -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc  -fno-stack-protector -Ilibs/ -Os -nostdinc
 > ```
+> 
 > 注意到在编译bootblock时就已经生成bin/sign
 > 最后生成UCOREIMG
 > > 对于UCOREIMG的生成代码如下
