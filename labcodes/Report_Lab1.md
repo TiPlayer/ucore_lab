@@ -77,7 +77,7 @@
 > -Iboot/ -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc  -fno-stack-protector -Ilibs/ -Os -nostdinc
 > ```
 > 
-> 注意到在编译bootblock时就已经生成bin/sign
+> 注意到在编译bootblock时就已经生成bin/sign  
 > 最后生成UCOREIMG
 > > 对于UCOREIMG的生成代码如下
 > > 对应代码为
@@ -107,9 +107,19 @@
 > ```
 > > 相当于放入5120000个字节的零，然后再放入bootblock，最后放入kernel
 
+1. *一个被系统认为是符合规范的硬盘主引导扇区的特征是什么?*
+
+> 可以看到，bootblock是一个硬盘的主引导扇区，在Makefile中有如下代码:
+> ```
+> @$(call totarget,sign) $(call outfile,bootblock) $(bootblock)
+> ```
+> 也就是说bootblock需要经过bin/sign的处理，一开始只是生成了bootblock.out, 经过bin/sign的处理后输出bootblock
+> bootblock.out的size为472Byte
+> 经过bin/sign的处理后
+> bootblock的size为512Byte
+> 且510, 511字节分别为0x55 0xAA
+> 和课堂所讲一致
 
 
-2. *一个被系统认为是符合规范的硬盘主引导扇区的特征是什么?*
 
-> 答:
 
