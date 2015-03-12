@@ -52,7 +52,7 @@ CFLAGS	:= -fno-builtin -Wall -ggdb -m32 -gstabs -nostdinc $(DEFS)
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 else
 HOSTCC		:= clang
-HOSTCFLAGS	:= -g -Wall -O2
+HOSTCFLAGS	:= -g -Wall -O2 
 CC		:= clang
 CFLAGS	:= -fno-builtin -Wall -g -m32 -mno-sse -nostdinc $(DEFS)
 CFLAGS	+= $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
@@ -143,6 +143,7 @@ kernel = $(call totarget,kernel)
 $(kernel): tools/kernel.ld
 
 $(kernel): $(KOBJS)
+	@echo $(KOBJS)
 	@echo + ld $@
 	$(V)$(LD) $(LDFLAGS) -T tools/kernel.ld -o $@ $(KOBJS)
 	@$(OBJDUMP) -S $@ > $(call asmfile,kernel)
@@ -159,6 +160,8 @@ $(foreach f,$(bootfiles),$(call cc_compile,$(f),$(CC),$(CFLAGS) -Os -nostdinc))
 bootblock = $(call totarget,bootblock)
 
 $(bootblock): $(call toobj,$(bootfiles)) | $(call totarget,sign)
+	@echo $(call toobj,$(bootfiles))
+	@echo $(call totarget,sign)
 	@echo + ld $@
 	$(V)$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 $^ -o $(call toobj,bootblock)
 	@$(OBJDUMP) -S $(call objfile,bootblock) > $(call asmfile,bootblock)
@@ -203,10 +206,18 @@ endif
 # files for grade script
 
 TARGETS: $(TARGETS)
+	@echo $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
 .PHONY: qemu qemu-nox debug debug-nox
+
+
+step: $(UCOREIMG)
+	$(V)$(TERMINAL) -e "$(QEMU) -S -s -d in_asm -D $(BINDIR)/q.log -monitor stdio -hda $< -serial null"
+	$(V)sleep 2
+	$(V)$(TERMINAL) -e "gdb -q -x tools/step_gdbinit"
+
 qemu-mon: $(UCOREIMG)
 	$(V)$(QEMU) -monitor stdio -hda $< -serial null
 qemu: $(UCOREIMG)
