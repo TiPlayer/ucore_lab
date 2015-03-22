@@ -3,8 +3,7 @@
 
 int magic = -0x10384;
 
-int
-main(void) {
+int main(void) {
     int pid, code;
     cprintf("I am the parent. Forking the child...\n");
     if ((pid = fork()) == 0) {

@@ -74,8 +74,10 @@
 #include <atomic.h>
 #include <list.h>
 
-typedef uintptr_t pte_t;
+
 typedef uintptr_t pde_t;
+
+typedef uintptr_t pte_t;
 
 // some constants for bios interrupt 15h AX = 0xE820
 #define E820MAX             20      // number of entries in E820MAP

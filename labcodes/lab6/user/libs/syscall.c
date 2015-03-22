@@ -5,8 +5,7 @@
 
 #define MAX_ARGS            5
 
-static inline int
-syscall(int num, ...) {
+static inline int syscall(int num, ...) {
     va_list ap;
     va_start(ap, num);
     uint32_t a[MAX_ARGS];

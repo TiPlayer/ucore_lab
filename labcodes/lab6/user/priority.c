@@ -11,67 +11,65 @@ int status[TOTAL];
 int pids[TOTAL];
 
 static void
-spin_delay(void)
-{
-     int i;
-     volatile int j;
-     for (i = 0; i != 200; ++ i)
-     {
-          j = !j;
-     }
+spin_delay(void) {
+  int i;
+  volatile int j;
+  for (i = 0; i != 200; ++ i) {
+    j = !j;
+  }
 }
 
 int
 main(void) {
-     int i,time;
-     memset(pids, 0, sizeof(pids));
-     lab6_set_priority(TOTAL + 1);
+  int i,time;
+  memset(pids, 0, sizeof(pids));
+  lab6_set_priority(TOTAL + 1);
 
-     for (i = 0; i < TOTAL; i ++) {
-          acc[i]=0;
-          if ((pids[i] = fork()) == 0) {
-               lab6_set_priority(i + 1);
-               acc[i] = 0;
-               while (1) {
-                    spin_delay();
-                    ++ acc[i];
-                    if(acc[i]%4000==0) {
-                        if((time=gettime_msec())>MAX_TIME) {
-                            cprintf("child pid %d, acc %d, time %d\n",getpid(),acc[i],time);
-                            exit(acc[i]);
-                        }
-                    }
-               }
-               
+  for (i = 0; i < TOTAL; i ++) {
+    acc[i]=0;
+    if ((pids[i] = fork()) == 0) {
+      lab6_set_priority(i + 1);
+      acc[i] = 0;
+      while (1) {
+        spin_delay();
+        ++ acc[i];
+        if(acc[i]%4000==0) {
+          if((time=gettime_msec())>MAX_TIME) {
+            cprintf("child pid %d, acc %d, time %d\n",getpid(),acc[i],time);
+            exit(acc[i]);
           }
-          if (pids[i] < 0) {
-               goto failed;
-          }
-     }
+        }
+      }
 
-     cprintf("main: fork ok,now need to wait pids.\n");
+    }
+    if (pids[i] < 0) {
+      goto failed;
+    }
+  }
 
-     for (i = 0; i < TOTAL; i ++) {
-         status[i]=0;
-         waitpid(pids[i],&status[i]);
-         cprintf("main: pid %d, acc %d, time %d\n",pids[i],status[i],gettime_msec()); 
-     }
-     cprintf("main: wait pids over\n");
-     cprintf("stride sched correct result:");
-     for (i = 0; i < TOTAL; i ++)
-     {
-         cprintf(" %d", (status[i] * 2 / status[0] + 1) / 2);
-     }
-     cprintf("\n");
+  cprintf("main: fork ok,now need to wait pids.\n");
 
-     return 0;
+  for (i = 0; i < TOTAL; i ++) {
+    status[i]=0;
+    waitpid(pids[i],&status[i]);
+    cprintf("main: pid %d, acc %d, time %d\n",pids[i],status[i],gettime_msec());
+  }
+  cprintf("main: wait pids over\n");
+  cprintf("stride sched correct result:");
+  for (i = 0; i < TOTAL; i ++)
+  {
+    cprintf(" %d", (status[i] * 2 / status[0] + 1) / 2);
+  }
+  cprintf("\n");
 
-failed:
-     for (i = 0; i < TOTAL; i ++) {
-          if (pids[i] > 0) {
-               kill(pids[i]);
-          }
-     }
-     panic("FAIL: T.T\n");
+  return 0;
+
+  failed:
+  for (i = 0; i < TOTAL; i ++) {
+    if (pids[i] > 0) {
+      kill(pids[i]);
+    }
+  }
+  panic("FAIL: T.T\n");
 }
 
