@@ -610,6 +610,7 @@ do_execve(const char *name, size_t len, unsigned char *binary, size_t size) {
     if (mm_count_dec(mm) == 0) {
       exit_mmap(mm);
       put_pgdir(mm);
+
       mm_destroy(mm);
     }
     current->mm = NULL;
