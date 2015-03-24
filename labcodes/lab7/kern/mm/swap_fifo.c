@@ -49,7 +49,7 @@ _fifo_map_swappable(struct mm_struct *mm, uintptr_t addr, struct Page *page, int
 
   assert(entry != NULL && head != NULL);
   //record the page access situlation
-  /*LAB3 EXERCISE 2: j2012011295*/
+  /*LAB3 EXERCISE 2: 2012011295*/
   list_add_before(head, entry);
   return 0;
 }
