@@ -153,7 +153,7 @@ endef
 $(foreach p,$(call read_packet,uprog),$(eval $(call uprog_ld,$(p))))
 
 # -------------------------------------------------------------------
-#copy from dxmtb. I actually don't know wtf this is at all
+#copy from wty. I actually don't know what is this also.
 entryother = $(call toobj,entryother)
 $(entryother): $(call toobj,kern/init/entryother.S)
 	$(V)$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(call toobj,bootblockother) $^

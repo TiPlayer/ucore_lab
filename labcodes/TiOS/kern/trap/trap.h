@@ -38,6 +38,9 @@
 #define IRQ_ERROR               19
 #define IRQ_SPURIOUS            31
 
+#define T_IRQ0          32      // IRQ 0 corresponds to int T_IRQ
+
+
 /* *
  * These are arbitrarily chosen, but with care not to overlap
  * processor defined exceptions or interrupt vectors.

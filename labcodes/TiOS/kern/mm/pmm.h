@@ -27,7 +27,7 @@ extern pde_t *boot_pgdir;
 extern uintptr_t boot_cr3;
 
 void pmm_init(void);
-
+void pmm_init_second(int cpu_num);
 struct Page *alloc_pages(size_t n);
 void free_pages(struct Page *base, size_t n);
 size_t nr_free_pages(void);

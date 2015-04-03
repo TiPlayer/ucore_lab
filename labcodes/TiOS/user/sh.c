@@ -214,9 +214,8 @@ runit:
     return __exec(NULL, argv);
 }
 
-int
-main(int argc, char **argv) {
-    printf("user sh is running!!!");
+int main(int argc, char **argv) {
+    printf("user sh is running!!!\n");
     int ret, interactive = 1;
     if (argc == 2) {
         if ((ret = reopen(0, argv[1], O_RDONLY)) != 0) {

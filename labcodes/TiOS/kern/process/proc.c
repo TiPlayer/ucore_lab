@@ -69,6 +69,19 @@ list_entry_t proc_list;
 #define HASH_LIST_SIZE      (1 << HASH_SHIFT)
 #define pid_hashfn(x)       (hash32(x, HASH_SHIFT))
 
+#define DEBUGINFO \
+  cprintf("===============debug-info-start===================\n"); \
+  cprintf("proc::current = %s, id = %d\n", current->name, current->pid); \
+  cprintf("ebp: \t%p\n", read_ebp()); \
+  cprintf("*ebp: \t%p\n", *(int*) read_ebp());\
+  cprintf("k-cr3: \t%p\n", KADDR(rcr3())); \
+  uint16_t seg[4];\
+  read_segment_selectors(seg); \
+  cprintf("%p, %p, %p, %p\n", seg[0], seg[1], seg[2], seg[3]);\
+  cprintf("===============debug-info-end=====================\n");
+
+
+
 // has list for process set based on pid
 static list_entry_t hash_list[HASH_LIST_SIZE];
 
@@ -178,8 +191,16 @@ get_pid(void) {
 
 // proc_run - make process "proc" running on cpu
 // NOTE: before call switch_to, should load  base addr of "proc"'s new PDT
-void
-proc_run(struct proc_struct *proc) {
+void proc_run(struct proc_struct *proc) {
+//  if (proc->pid == 0) {
+//    cprintf("==================start===================\n");
+//    cprintf("proc::current = %s, id = %d\n", proc->name, proc->pid);
+//    cprintf("%p, %p\n", current->kstack, proc->kstack);
+//    cprintf("ebp: \t%p\n", proc->context.ebp);
+//    cprintf("*ebp: \t%p\n", *(int *) proc->context.ebp);
+//    cprintf("*esp0: \t%p\n", proc->kstack + KSTACKSIZE);
+//    cprintf("==================end======================\n");
+//  }
   if (proc != current) {
     bool intr_flag;
     struct proc_struct *prev = current, *next = proc;
@@ -190,7 +211,7 @@ proc_run(struct proc_struct *proc) {
       lcr3(next->cr3);
       switch_to(&(prev->context), &(next->context));
     }
-    local_intr_restore(intr_flag);
+    local_intr_restore(intr_flag);;
   }
 }
 
@@ -667,6 +688,7 @@ load_icode(int fd, int argc, char **kargv) {
   goto out;
 }
 
+
 // this function isn't very correct in LAB8
 static void
 put_kargv(int argc, char **kargv) {
@@ -703,8 +725,7 @@ copy_kargv(struct mm_struct *mm, int argc, char **kargv, const char **argv) {
 
 // do_execve - call exit_mmap(mm)&pug_pgdir(mm) to reclaim memory space of current process
 //           - call load_icode to setup new memory space accroding binary prog.
-int
-do_execve(const char *name, int argc, const char **argv) {
+int do_execve(const char *name, int argc, const char **argv) {
   static_assert(EXEC_MAX_ARG_LEN >= FS_MAX_FPATH_LEN);
   struct mm_struct *mm = current->mm;
   if (!(argc >= 1 && argc <= EXEC_MAX_ARG_NUM)) {
@@ -912,8 +933,8 @@ init_main(void *arg) {
   if (pid <= 0) {
     panic("create user_main failed.\n");
   }
-  extern void check_sync(void);
-  check_sync();                // check philosopher sync problem
+//  extern void check_sync(void);
+//  check_sync();                // check philosopher sync problem
 
   while (do_wait(0, NULL) == 0) {
     schedule();
@@ -975,9 +996,10 @@ proc_init(void) {
 
 // cpu_idle - at the end of kern_init, the first kernel thread idleproc will do below works
 void
-cpu_idle(void) {
+cpu_idle(void){
   while (1) {
     if (current->need_resched) {
+//      cprintf("current: %s\n", current->name);
       schedule();
     }
   }
@@ -1012,3 +1034,5 @@ do_sleep(unsigned int time) {
   del_timer(timer);
   return 0;
 }
+
+

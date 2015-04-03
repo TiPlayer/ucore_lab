@@ -388,8 +388,7 @@ volatile unsigned int pgfault_num=0;
  *         -- The U/S flag (bit 2) indicates whether the processor was executing at user mode (1)
  *            or supervisor mode (0) at the time of the exception.
  */
-int
-do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
+int do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
   int ret = -E_INVAL;
   //try to find a vma which include addr
   struct vma_struct *vma = find_vma(mm, addr);
@@ -397,7 +396,7 @@ do_pgfault(struct mm_struct *mm, uint32_t error_code, uintptr_t addr) {
   pgfault_num++;
   //If the addr is in the range of a mm's vma?
   if (vma == NULL || vma->vm_start > addr) {
-    cprintf("not valid addr %x, and  can not find it in vma\n", addr);
+    cprintf("not valid addr %x, and can not find it in vma\n", addr);
     goto failed;
   }
   //check the error_code

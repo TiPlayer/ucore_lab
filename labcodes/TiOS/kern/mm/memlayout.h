@@ -6,16 +6,21 @@
 /* global segment number */
 #define SEG_KTEXT   1
 #define SEG_KDATA   2
-#define SEG_UTEXT   3
-#define SEG_UDATA   4
-#define SEG_TSS     5
+#define SEG_KCPU    3  // kernel per-cpu data
+#define SEG_UTEXT   4
+#define SEG_UDATA   5
+#define SEG_TSS     6
+
 
 /* global descrptor numbers */
 #define GD_KTEXT    ((SEG_KTEXT) << 3)      // kernel text
 #define GD_KDATA    ((SEG_KDATA) << 3)      // kernel data
+#define GD_KCPU     ((SEG_KCPU) << 3)        // task segment selector
 #define GD_UTEXT    ((SEG_UTEXT) << 3)      // user text
 #define GD_UDATA    ((SEG_UDATA) << 3)      // user data
 #define GD_TSS      ((SEG_TSS) << 3)        // task segment selector
+
+
 
 #define DPL_KERNEL  (0)
 #define DPL_USER    (3)
@@ -24,6 +29,15 @@
 #define KERNEL_DS   ((GD_KDATA) | DPL_KERNEL)
 #define USER_CS     ((GD_UTEXT) | DPL_USER)
 #define USER_DS     ((GD_UDATA) | DPL_USER)
+#define CPU_GS      ((GD_KCPU) | DPL_KERNEL)
+
+
+#define EXTMEM  0x100000            // Start of extended memory
+#define PHYSTOP 0xE000000           // Top physical memory
+#define DEVSPACE 0xFE000000         // Other devices are at high addresses
+
+// Key addresses for address space layout (see kmap in vm.c for layout)
+#define KERNLINK (KERNBASE+EXTMEM)  // Address where kernel is linked
 
 /* *
  * Virtual memory map:                                          Permissions
@@ -156,6 +170,8 @@ typedef struct {
     unsigned int nr_free;           // # of free pages in this free list
 } free_area_t;
 
+#define V2P(a) (((uint) (a)) - KERNBASE)
+#define P2V(a) (((void *) (a)) + KERNBASE)
 
 #endif /* !__ASSEMBLER__ */
 

@@ -185,6 +185,7 @@ trap_dispatch(struct trapframe *tf) {
 
   switch (tf->tf_trapno) {
     case T_PGFLT:  //page fault
+      cprintf("page fault\n");
       if ((ret = pgfault_handler(tf)) != 0) {
         print_trapframe(tf);
         if (current == NULL) {
@@ -199,19 +200,18 @@ trap_dispatch(struct trapframe *tf) {
           do_exit(-E_KILLED);
         }
       }
+      lapiceoi();
       break;
     case T_SYSCALL:
       syscall();
+      //cprintf("syscall done\n");
+      //debug_break();
       break;
     case IRQ_OFFSET + IRQ_TIMER:
-      /* LAB1 2012011295 : STEP 3 */
       ticks++;
-      if (ticks % TICK_NUM == 0) {
-        /* LAB5 2012011295 */
-        current->need_resched = 1;
-      }
-      /* LAB6 2012011295 */
+      assert(current != NULL);
       run_timer_list();
+      lapiceoi();
       break;
     case IRQ_OFFSET + IRQ_COM1:
     case IRQ_OFFSET + IRQ_KBD:
@@ -221,14 +221,11 @@ trap_dispatch(struct trapframe *tf) {
         extern void dev_stdin_write(char c);
         dev_stdin_write(c);
       }
-      break;
-      //LAB1 CHALLENGE 1 : YOUR CODE you should modify below codes.
-    case T_SWITCH_TOU:
-    case T_SWITCH_TOK:
-      panic("T_SWITCH_** ??\n");
+      lapiceoi();
       break;
     case IRQ_OFFSET + IRQ_IDE1:
     case IRQ_OFFSET + IRQ_IDE2:
+      lapiceoi();
       /* do nothing */
       break;
     default:
@@ -248,22 +245,17 @@ trap_dispatch(struct trapframe *tf) {
  * the code in kern/trap/trapentry.S restores the old CPU state saved in the
  * trapframe and then uses the iret instruction to return from the exception.
  * */
-void
-trap(struct trapframe *tf) {
+void trap(struct trapframe *tf) {
   // dispatch based on what type of trap occurred
   // used for previous projects
   if (current == NULL) {
     trap_dispatch(tf);
-  }
-  else {
+  } else {
     // keep a trapframe chain in stack
     struct trapframe *otf = current->tf;
     current->tf = tf;
-
     bool in_kernel = trap_in_kernel(tf);
-
     trap_dispatch(tf);
-
     current->tf = otf;
     if (!in_kernel) {
       if (current->flags & PF_EXITING) {

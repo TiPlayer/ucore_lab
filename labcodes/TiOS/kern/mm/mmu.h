@@ -23,6 +23,7 @@
 #define FL_VIF          0x00080000  // Virtual Interrupt Flag
 #define FL_VIP          0x00100000  // Virtual Interrupt Pending
 #define FL_ID           0x00200000  // ID flag
+#define NPDENTRIES      1024    // # directory entries per page directory
 
 /* Application segment type bits */
 #define STA_X           0x8         // Executable segment
@@ -128,13 +129,14 @@ struct segdesc {
 #define SEG_NULL                                            \
     (struct segdesc) {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
-#define SEG(type, base, lim, dpl)                           \
-    (struct segdesc) {                                      \
-        ((lim) >> 12) & 0xffff, (base) & 0xffff,            \
-        ((base) >> 16) & 0xff, type, 1, dpl, 1,             \
-        (unsigned)(lim) >> 28, 0, 0, 1, 1,                  \
-        (unsigned) (base) >> 24                             \
-    }
+#define SEG(type, base, lim, dpl) (struct segdesc)    \
+{ ((lim) >> 12) & 0xffff, (uint)(base) & 0xffff,      \
+  ((uint)(base) >> 16) & 0xff, type, 1, dpl, 1,       \
+  (uint)(lim) >> 28, 0, 0, 1, 1, (uint)(base) >> 24 }
+#define SEG16(type, base, lim, dpl) (struct segdesc)  \
+{ (lim) & 0xffff, (uint)(base) & 0xffff,              \
+  ((uint)(base) >> 16) & 0xff, type, 1, dpl, 1,       \
+  (uint)(lim) >> 16, 0, 0, 1, 0, (uint)(base) >> 24 }
 
 #define SEGTSS(type, base, lim, dpl)                        \
     (struct segdesc) {                                      \

@@ -11,10 +11,10 @@
 /* stupid I/O delay routine necessitated by historical PC design flaws */
 static void
 delay(void) {
-    inb(0x84);
-    inb(0x84);
-    inb(0x84);
-    inb(0x84);
+  inb(0x84);
+  inb(0x84);
+  inb(0x84);
+  inb(0x84);
 }
 
 /***** Serial I/O code *****/
@@ -58,145 +58,146 @@ static uint16_t addr_6845;
 
 static void
 cga_init(void) {
-    volatile uint16_t *cp = (uint16_t *)(CGA_BUF + KERNBASE);
-    uint16_t was = *cp;
-    *cp = (uint16_t) 0xA55A;
-    if (*cp != 0xA55A) {
-        cp = (uint16_t*)(MONO_BUF + KERNBASE);
-        addr_6845 = MONO_BASE;
-    } else {
-        *cp = was;
-        addr_6845 = CGA_BASE;
-    }
+  volatile uint16_t *cp = (uint16_t *)(CGA_BUF + KERNBASE);
+  uint16_t was = *cp;
+  *cp = (uint16_t) 0xA55A;
+  if (*cp != 0xA55A) {
+    cp = (uint16_t*)(MONO_BUF + KERNBASE);
+    addr_6845 = MONO_BASE;
+  } else {
+    *cp = was;
+    addr_6845 = CGA_BASE;
+  }
 
-    // Extract cursor location
-    uint32_t pos;
-    outb(addr_6845, 14);
-    pos = inb(addr_6845 + 1) << 8;
-    outb(addr_6845, 15);
-    pos |= inb(addr_6845 + 1);
+  // Extract cursor location
+  uint32_t pos;
+  outb(addr_6845, 14);
+  pos = inb(addr_6845 + 1) << 8;
+  outb(addr_6845, 15);
+  pos |= inb(addr_6845 + 1);
 
-    crt_buf = (uint16_t*) cp;
-    crt_pos = pos;
+  crt_buf = (uint16_t*) cp;
+  crt_pos = pos;
 }
 
 static bool serial_exists = 0;
 
 static void
 serial_init(void) {
-    // Turn off the FIFO
-    outb(COM1 + COM_FCR, 0);
+  // Turn off the FIFO
+  outb(COM1 + COM_FCR, 0);
 
-    // Set speed; requires DLAB latch
-    outb(COM1 + COM_LCR, COM_LCR_DLAB);
-    outb(COM1 + COM_DLL, (uint8_t) (115200 / 9600));
-    outb(COM1 + COM_DLM, 0);
+  // Set speed; requires DLAB latch
+  outb(COM1 + COM_LCR, COM_LCR_DLAB);
+  outb(COM1 + COM_DLL, (uint8_t) (115200 / 9600));
+  outb(COM1 + COM_DLM, 0);
 
-    // 8 data bits, 1 stop bit, parity off; turn off DLAB latch
-    outb(COM1 + COM_LCR, COM_LCR_WLEN8 & ~COM_LCR_DLAB);
+  // 8 data bits, 1 stop bit, parity off; turn off DLAB latch
+  outb(COM1 + COM_LCR, COM_LCR_WLEN8 & ~COM_LCR_DLAB);
 
-    // No modem controls
-    outb(COM1 + COM_MCR, 0);
-    // Enable rcv interrupts
-    outb(COM1 + COM_IER, COM_IER_RDI);
+  // No modem controls
+  outb(COM1 + COM_MCR, 0);
+  // Enable rcv interrupts
+  outb(COM1 + COM_IER, COM_IER_RDI);
 
-    // Clear any preexisting overrun indications and interrupts
-    // Serial port doesn't exist if COM_LSR returns 0xFF
-    serial_exists = (inb(COM1 + COM_LSR) != 0xFF);
-    (void) inb(COM1+COM_IIR);
-    (void) inb(COM1+COM_RX);
+  // Clear any preexisting overrun indications and interrupts
+  // Serial port doesn't exist if COM_LSR returns 0xFF
+  serial_exists = (inb(COM1 + COM_LSR) != 0xFF);
+  (void) inb(COM1+COM_IIR);
+  (void) inb(COM1+COM_RX);
 
-    if (serial_exists) {
-        pic_enable(IRQ_COM1);
-    }
+  if (serial_exists) {
+    pic_enable(IRQ_COM1);
+    ioapicenable(IRQ_COM1, 0);
+  }
 }
 
 static void
 lpt_putc_sub(int c) {
-    int i;
-    for (i = 0; !(inb(LPTPORT + 1) & 0x80) && i < 12800; i ++) {
-        delay();
-    }
-    outb(LPTPORT + 0, c);
-    outb(LPTPORT + 2, 0x08 | 0x04 | 0x01);
-    outb(LPTPORT + 2, 0x08);
+  int i;
+  for (i = 0; !(inb(LPTPORT + 1) & 0x80) && i < 12800; i ++) {
+    delay();
+  }
+  outb(LPTPORT + 0, c);
+  outb(LPTPORT + 2, 0x08 | 0x04 | 0x01);
+  outb(LPTPORT + 2, 0x08);
 }
 
 /* lpt_putc - copy console output to parallel port */
 static void
 lpt_putc(int c) {
-    if (c != '\b') {
-        lpt_putc_sub(c);
-    }
-    else {
-        lpt_putc_sub('\b');
-        lpt_putc_sub(' ');
-        lpt_putc_sub('\b');
-    }
+  if (c != '\b') {
+    lpt_putc_sub(c);
+  }
+  else {
+    lpt_putc_sub('\b');
+    lpt_putc_sub(' ');
+    lpt_putc_sub('\b');
+  }
 }
 
 /* cga_putc - print character to console */
 static void
 cga_putc(int c) {
-    // set black on white
-    if (!(c & ~0xFF)) {
-        c |= 0x0700;
-    }
+  // set black on white
+  if (!(c & ~0xFF)) {
+    c |= 0x0700;
+  }
 
-    switch (c & 0xff) {
+  switch (c & 0xff) {
     case '\b':
-        if (crt_pos > 0) {
-            crt_pos --;
-            crt_buf[crt_pos] = (c & ~0xff) | ' ';
-        }
-        break;
+      if (crt_pos > 0) {
+        crt_pos --;
+        crt_buf[crt_pos] = (c & ~0xff) | ' ';
+      }
+      break;
     case '\n':
-        crt_pos += CRT_COLS;
+      crt_pos += CRT_COLS;
     case '\r':
-        crt_pos -= (crt_pos % CRT_COLS);
-        break;
+      crt_pos -= (crt_pos % CRT_COLS);
+      break;
     default:
-        crt_buf[crt_pos ++] = c;     // write the character
-        break;
-    }
+      crt_buf[crt_pos ++] = c;     // write the character
+      break;
+  }
 
-    // What is the purpose of this?
-    if (crt_pos >= CRT_SIZE) {
-        int i;
-        memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
-        for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i ++) {
-            crt_buf[i] = 0x0700 | ' ';
-        }
-        crt_pos -= CRT_COLS;
+  // What is the purpose of this?
+  if (crt_pos >= CRT_SIZE) {
+    int i;
+    memmove(crt_buf, crt_buf + CRT_COLS, (CRT_SIZE - CRT_COLS) * sizeof(uint16_t));
+    for (i = CRT_SIZE - CRT_COLS; i < CRT_SIZE; i ++) {
+      crt_buf[i] = 0x0700 | ' ';
     }
+    crt_pos -= CRT_COLS;
+  }
 
-    // move that little blinky thing
-    outb(addr_6845, 14);
-    outb(addr_6845 + 1, crt_pos >> 8);
-    outb(addr_6845, 15);
-    outb(addr_6845 + 1, crt_pos);
+  // move that little blinky thing
+  outb(addr_6845, 14);
+  outb(addr_6845 + 1, crt_pos >> 8);
+  outb(addr_6845, 15);
+  outb(addr_6845 + 1, crt_pos);
 }
 
 static void
 serial_putc_sub(int c) {
-    int i;
-    for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i ++) {
-        delay();
-    }
-    outb(COM1 + COM_TX, c);
+  int i;
+  for (i = 0; !(inb(COM1 + COM_LSR) & COM_LSR_TXRDY) && i < 12800; i ++) {
+    delay();
+  }
+  outb(COM1 + COM_TX, c);
 }
 
 /* serial_putc - print character to serial port */
 static void
 serial_putc(int c) {
-    if (c != '\b') {
-        serial_putc_sub(c);
-    }
-    else {
-        serial_putc_sub('\b');
-        serial_putc_sub(' ');
-        serial_putc_sub('\b');
-    }
+  if (c != '\b') {
+    serial_putc_sub(c);
+  }
+  else {
+    serial_putc_sub('\b');
+    serial_putc_sub(' ');
+    serial_putc_sub('\b');
+  }
 }
 
 /* *
@@ -208,9 +209,9 @@ serial_putc(int c) {
 #define CONSBUFSIZE 512
 
 static struct {
-    uint8_t buf[CONSBUFSIZE];
-    uint32_t rpos;
-    uint32_t wpos;
+  uint8_t buf[CONSBUFSIZE];
+  uint32_t rpos;
+  uint32_t wpos;
 } cons;
 
 /* *
@@ -219,36 +220,36 @@ static struct {
  * */
 static void
 cons_intr(int (*proc)(void)) {
-    int c;
-    while ((c = (*proc)()) != -1) {
-        if (c != 0) {
-            cons.buf[cons.wpos ++] = c;
-            if (cons.wpos == CONSBUFSIZE) {
-                cons.wpos = 0;
-            }
-        }
+  int c;
+  while ((c = (*proc)()) != -1) {
+    if (c != 0) {
+      cons.buf[cons.wpos ++] = c;
+      if (cons.wpos == CONSBUFSIZE) {
+        cons.wpos = 0;
+      }
     }
+  }
 }
 
 /* serial_proc_data - get data from serial port */
 static int
 serial_proc_data(void) {
-    if (!(inb(COM1 + COM_LSR) & COM_LSR_DATA)) {
-        return -1;
-    }
-    int c = inb(COM1 + COM_RX);
-    if (c == 127) {
-        c = '\b';
-    }
-    return c;
+  if (!(inb(COM1 + COM_LSR) & COM_LSR_DATA)) {
+    return -1;
+  }
+  int c = inb(COM1 + COM_RX);
+  if (c == 127) {
+    c = '\b';
+  }
+  return c;
 }
 
 /* serial_intr - try to feed input characters from serial port */
 void
 serial_intr(void) {
-    if (serial_exists) {
-        cons_intr(serial_proc_data);
-    }
+  if (serial_exists) {
+    cons_intr(serial_proc_data);
+  }
 }
 
 /***** Keyboard input code *****/
@@ -353,86 +354,88 @@ static uint8_t *charcode[4] = {
  * */
 static int
 kbd_proc_data(void) {
-    int c;
-    uint8_t data;
-    static uint32_t shift;
+  int c;
+  uint8_t data;
+  static uint32_t shift;
 
-    if ((inb(KBSTATP) & KBS_DIB) == 0) {
-        return -1;
-    }
+  if ((inb(KBSTATP) & KBS_DIB) == 0) {
+    return -1;
+  }
 
-    data = inb(KBDATAP);
+  data = inb(KBDATAP);
 
-    if (data == 0xE0) {
-        // E0 escape character
-        shift |= E0ESC;
-        return 0;
-    } else if (data & 0x80) {
-        // Key released
-        data = (shift & E0ESC ? data : data & 0x7F);
-        shift &= ~(shiftcode[data] | E0ESC);
-        return 0;
-    } else if (shift & E0ESC) {
-        // Last character was an E0 escape; or with 0x80
-        data |= 0x80;
-        shift &= ~E0ESC;
-    }
+  if (data == 0xE0) {
+    // E0 escape character
+    shift |= E0ESC;
+    return 0;
+  } else if (data & 0x80) {
+    // Key released
+    data = (shift & E0ESC ? data : data & 0x7F);
+    shift &= ~(shiftcode[data] | E0ESC);
+    return 0;
+  } else if (shift & E0ESC) {
+    // Last character was an E0 escape; or with 0x80
+    data |= 0x80;
+    shift &= ~E0ESC;
+  }
 
-    shift |= shiftcode[data];
-    shift ^= togglecode[data];
+  shift |= shiftcode[data];
+  shift ^= togglecode[data];
 
-    c = charcode[shift & (CTL | SHIFT)][data];
-    if (shift & CAPSLOCK) {
-        if ('a' <= c && c <= 'z')
-            c += 'A' - 'a';
-        else if ('A' <= c && c <= 'Z')
-            c += 'a' - 'A';
-    }
+  c = charcode[shift & (CTL | SHIFT)][data];
+  if (shift & CAPSLOCK) {
+    if ('a' <= c && c <= 'z')
+      c += 'A' - 'a';
+    else if ('A' <= c && c <= 'Z')
+      c += 'a' - 'A';
+  }
 
-    // Process special keys
-    // Ctrl-Alt-Del: reboot
-    if (!(~shift & (CTL | ALT)) && c == KEY_DEL) {
-        cprintf("Rebooting!\n");
-        outb(0x92, 0x3); // courtesy of Chris Frost
-    }
-    return c;
+  // Process special keys
+  // Ctrl-Alt-Del: reboot
+  if (!(~shift & (CTL | ALT)) && c == KEY_DEL) {
+    cprintf("Rebooting!\n");
+    outb(0x92, 0x3); // courtesy of Chris Frost
+  }
+  return c;
 }
 
 /* kbd_intr - try to feed input characters from keyboard */
 static void
 kbd_intr(void) {
-    cons_intr(kbd_proc_data);
+  cons_intr(kbd_proc_data);
 }
 
 static void
 kbd_init(void) {
-    // drain the kbd buffer
-    kbd_intr();
-    pic_enable(IRQ_KBD);
+  // drain the kbd buffer
+  kbd_intr();
+  pic_enable(IRQ_KBD);
+  ioapicenable(IRQ_KBD, 0);
 }
 
 /* cons_init - initializes the console devices */
-void
-cons_init(void) {
-    cga_init();
-    serial_init();
-    kbd_init();
-    if (!serial_exists) {
-        cprintf("serial port does not exist!!\n");
-    }
+void cons_init_cga(void) {
+  cga_init();
+}
+void cons_init_keyboard(void) {
+  kbd_init();
+  serial_init();
+  if (!serial_exists) {
+    cprintf("serial port does not exist!!\n");
+  }
 }
 
 /* cons_putc - print a single character @c to console devices */
 void
 cons_putc(int c) {
-    bool intr_flag;
-    local_intr_save(intr_flag);
-    {
-        lpt_putc(c);
-        cga_putc(c);
-        serial_putc(c);
-    }
-    local_intr_restore(intr_flag);
+  bool intr_flag;
+  local_intr_save(intr_flag);
+  {
+    lpt_putc(c);
+    cga_putc(c);
+    serial_putc(c);
+  }
+  local_intr_restore(intr_flag);
 }
 
 /* *
@@ -441,25 +444,25 @@ cons_putc(int c) {
  * */
 int
 cons_getc(void) {
-    int c = 0;
-    bool intr_flag;
-    local_intr_save(intr_flag);
-    {
-        // poll for any pending input characters,
-        // so that this function works even when interrupts are disabled
-        // (e.g., when called from the kernel monitor).
-        serial_intr();
-        kbd_intr();
+  int c = 0;
+  bool intr_flag;
+  local_intr_save(intr_flag);
+  {
+    // poll for any pending input characters,
+    // so that this function works even when interrupts are disabled
+    // (e.g., when called from the kernel monitor).
+    serial_intr();
+    kbd_intr();
 
-        // grab the next character from the input buffer.
-        if (cons.rpos != cons.wpos) {
-            c = cons.buf[cons.rpos ++];
-            if (cons.rpos == CONSBUFSIZE) {
-                cons.rpos = 0;
-            }
-        }
+    // grab the next character from the input buffer.
+    if (cons.rpos != cons.wpos) {
+      c = cons.buf[cons.rpos ++];
+      if (cons.rpos == CONSBUFSIZE) {
+        cons.rpos = 0;
+      }
     }
-    local_intr_restore(intr_flag);
-    return c;
+  }
+  local_intr_restore(intr_flag);
+  return c;
 }
 

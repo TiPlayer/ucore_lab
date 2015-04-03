@@ -150,8 +150,7 @@ static void *slob_alloc(size_t size, gfp_t gfp, int align)
 	}
 }
 
-static void slob_free(void *block, int size)
-{
+static void slob_free(void *block, int size) {
 	slob_t *cur, *b = (slob_t *)block;
 	unsigned long flags;
 

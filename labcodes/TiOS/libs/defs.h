@@ -10,6 +10,8 @@
 #define __noreturn __attribute__((noreturn))
 
 #define CHAR_BIT        8
+#define NCPU 8
+
 
 /* Represents true-or-false values */
 typedef int bool;
@@ -23,7 +25,12 @@ typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
+typedef unsigned int   uint;
+typedef unsigned short ushort;
+typedef unsigned char  uchar;
 
+
+extern volatile uint*    lapic;
 /* *
  * Pointers and addresses are 32 bits long.
  * We use pointer types to represent addresses,
@@ -74,6 +81,47 @@ uint32_t __n = (uint32_t)(n);                           \
  * */
 #define to_struct(ptr, type, member)                               \
     ((type *)((char *)(ptr) - offsetof(type, member)))
+
+#define IDLE_EBP \
+  cprintf("/==================================*ebp=%p======================================/\n", *(int *)(0xc0153f98));
+
+#define IDLE_EBP_S(x) \
+  cprintf("/================%s==*ebp=%p==================/\n", (x), *(int *)(0xc0153f98));
+
+
+struct rtcdate;
+
+// ioapic.c
+void            ioapicenable(int irq, int cpu);
+extern uchar    ioapicid;
+void            ioapicinit(void);
+
+// lapic.c
+void            cmostime(struct rtcdate *r);
+int             cpunum(void);
+extern volatile uint*    lapic;
+void            lapiceoi(void);
+void            lapicinit(void);
+void            lapicstartap(uchar, uint);
+void            microdelay(int);
+
+// mp.c
+extern int      ismp;
+int             mpbcpu(void);
+void            mpinit(void);
+void            mpstartthem(void);
+
+// pmm.c
+void            seginit(int cpu_num);
+
+void            ioapicinit(void);
+
+struct proc_struct;
+//proc.c
+void            debug_info(struct proc_struct* current);
+// number of elements in fixed-size array
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
 
 #endif /* !__LIBS_DEFS_H__ */
 

@@ -7,6 +7,7 @@ int main(int argc, char *argv[]);
 
 static int
 initfd(int fd2, const char *path, uint32_t open_flags) {
+
     int fd1, ret;
     if ((fd1 = open(path, open_flags)) < 0) {
         return fd1;
@@ -19,8 +20,7 @@ initfd(int fd2, const char *path, uint32_t open_flags) {
     return ret;
 }
 
-void
-umain(int argc, char *argv[]) {
+void umain(int argc, char *argv[]) {
     int fd;
     if ((fd = initfd(0, "stdin:", O_RDONLY)) < 0) {
         warn("open <stdin> failed: %e.\n", fd);

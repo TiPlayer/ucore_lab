@@ -6,8 +6,14 @@
 #include <wait.h>
 
 typedef struct {
-    int value;
-    wait_queue_t wait_queue;
+  int value;
+  wait_queue_t wait_queue;
+
+
+  // For Debugging
+  char *name;        // Name of lock.
+  struct cpu *cpu;   // The cpu holding the lock.
+  uint pcs[10];      // The call stack (an array of program counters)
 } semaphore_t;
 
 void sem_init(semaphore_t *sem, int value);

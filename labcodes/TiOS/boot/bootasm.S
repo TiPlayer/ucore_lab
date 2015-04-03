@@ -81,9 +81,9 @@ protcseg:
     movw $PROT_MODE_DSEG, %ax                       # Our data segment selector
     movw %ax, %ds                                   # -> DS: Data Segment
     movw %ax, %es                                   # -> ES: Extra Segment
+    movw %ax, %ss                                   # -> SS: Stack Segment
     movw %ax, %fs                                   # -> FS
     movw %ax, %gs                                   # -> GS
-    movw %ax, %ss                                   # -> SS: Stack Segment
 
     # Set up the stack pointer and call into C. The stack region is from 0--start(0x7c00)
     movl $0x0, %ebp
