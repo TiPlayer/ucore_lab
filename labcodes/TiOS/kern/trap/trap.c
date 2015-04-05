@@ -160,16 +160,15 @@ pgfault_handler(struct trapframe *tf) {
   }
   struct mm_struct *mm;
   if (check_mm_struct != NULL) {
-    assert(current == idleproc);
     mm = check_mm_struct;
   }
   else {
-    if (current == NULL) {
+    if (current[getCurrentCPU()->id] == NULL) {
       print_trapframe(tf);
       print_pgfault(tf);
       panic("unhandled page fault.\n");
     }
-    mm = current->mm;
+    mm = current[getCurrentCPU()->id]->mm;
   }
   return do_pgfault(mm, tf->tf_err, rcr2());
 }
@@ -188,7 +187,7 @@ trap_dispatch(struct trapframe *tf) {
       cprintf("page fault\n");
       if ((ret = pgfault_handler(tf)) != 0) {
         print_trapframe(tf);
-        if (current == NULL) {
+        if (current[getCurrentCPU()->id] == NULL) {
           panic("handle pgfault failed. ret=%d\n", ret);
         }
         else {
@@ -209,7 +208,8 @@ trap_dispatch(struct trapframe *tf) {
       break;
     case IRQ_OFFSET + IRQ_TIMER:
       ticks++;
-      assert(current != NULL);
+      if (ticks % 1000 == 0) cprintf("This is CPU #%d, Current is #%d\n", getCurrentCPU()->id, current[getCurrentCPU()->id]->pid);
+      assert(current[getCurrentCPU()->id] != NULL);
       run_timer_list();
       lapiceoi();
       break;
@@ -230,7 +230,7 @@ trap_dispatch(struct trapframe *tf) {
       break;
     default:
       print_trapframe(tf);
-      if (current != NULL) {
+      if (current[getCurrentCPU()->id] != NULL) {
         cprintf("unhandled trap.\n");
         do_exit(-E_KILLED);
       }
@@ -246,22 +246,23 @@ trap_dispatch(struct trapframe *tf) {
  * trapframe and then uses the iret instruction to return from the exception.
  * */
 void trap(struct trapframe *tf) {
+  loadgs(SEG_KCPU << 3);
   // dispatch based on what type of trap occurred
   // used for previous projects
-  if (current == NULL) {
+  if (current[getCurrentCPU()->id] == NULL) {
     trap_dispatch(tf);
   } else {
     // keep a trapframe chain in stack
-    struct trapframe *otf = current->tf;
-    current->tf = tf;
+    struct trapframe *otf = current[getCurrentCPU()->id]->tf;
+    current[getCurrentCPU()->id]->tf = tf;
     bool in_kernel = trap_in_kernel(tf);
     trap_dispatch(tf);
-    current->tf = otf;
+    current[getCurrentCPU()->id]->tf = otf;
     if (!in_kernel) {
-      if (current->flags & PF_EXITING) {
+      if (current[getCurrentCPU()->id]->flags & PF_EXITING) {
         do_exit(-E_KILLED);
       }
-      if (current->need_resched) {
+      if (current[getCurrentCPU()->id]->need_resched) {
         schedule();
       }
     }

@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <assert.h>
 #include <default_sched.h>
+#include <spinlock.h>
+
+
 
 // the list of timer
 static list_entry_t timer_list;
@@ -15,7 +18,8 @@ static struct run_queue *rq;
 
 static inline void
 sched_class_enqueue(struct proc_struct *proc) {
-  if (proc != idleproc) {
+  if (not_equal_to_guard(proc)) {
+//    cprintf("%d Enqueued, %p, %p\n", proc->pid, proc, guard_proc_smp);
     sched_class->enqueue(rq, proc);
   }
 }
@@ -34,7 +38,7 @@ static void
 sched_class_proc_tick(struct proc_struct *proc) {
 //  cprintf("This is it\n");
 //  cprintf("%p, %p\n", proc, idleproc);
-  if (proc != idleproc) {
+  if (not_equal_to_guard(proc)) {
     sched_class->proc_tick(rq, proc);
   }
   else {
@@ -66,7 +70,7 @@ wakeup_proc(struct proc_struct *proc) {
     if (proc->state != PROC_RUNNABLE) {
       proc->state = PROC_RUNNABLE;
       proc->wait_state = 0;
-      if (proc != current) {
+      if (proc != current[getCurrentCPU()->id]) {
         sched_class_enqueue(proc);
       }
     }
@@ -77,28 +81,30 @@ wakeup_proc(struct proc_struct *proc) {
   local_intr_restore(intr_flag);
 }
 
-void
-schedule(void) {
+extern struct spinlock process_lock;
+
+void schedule(void) {
+  loadgs(SEG_KCPU << 3);
   bool intr_flag;
   struct proc_struct *next;
-  local_intr_save(intr_flag);
   {
-    current->need_resched = 0;
-    if (current->state == PROC_RUNNABLE) {
-      sched_class_enqueue(current);
+    current[getCurrentCPU()->id]->need_resched = 0;
+    acquire(&process_lock);
+    if (current[getCurrentCPU()->id]->state == PROC_RUNNABLE) {
+      sched_class_enqueue(current[getCurrentCPU()->id]);
     }
     if ((next = sched_class_pick_next()) != NULL) {
       sched_class_dequeue(next);
     }
+    release(&process_lock);
     if (next == NULL) {
-      next = idleproc;
+      next = guard_proc_smp[getCurrentCPU()->id];
     }
     next->runs ++;
-    if (next != current) {
+    if (next != current[getCurrentCPU()->id]) {
       proc_run(next);
     }
   }
-  local_intr_restore(intr_flag);
 }
 
 void
@@ -172,7 +178,8 @@ run_timer_list(void) {
       }
 
     }
-    sched_class_proc_tick(current);
+//    cprintf("This is CPU handling Interrupt #%d\n", getCurrentCPU()->id);
+    sched_class_proc_tick(current[getCurrentCPU()->id]);
   }
   local_intr_restore(intr_flag);
 }

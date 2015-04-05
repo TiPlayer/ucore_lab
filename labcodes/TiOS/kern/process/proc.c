@@ -15,6 +15,7 @@
 #include <fs.h>
 #include <vfs.h>
 #include <sysfile.h>
+#include "spinlock.h"
 
 /* ------------- process/thread mechanism design&implementation -------------
 (an simplified Linux process/thread mechanism )
@@ -69,9 +70,11 @@ list_entry_t proc_list;
 #define HASH_LIST_SIZE      (1 << HASH_SHIFT)
 #define pid_hashfn(x)       (hash32(x, HASH_SHIFT))
 
+struct spinlock process_lock;
+
 #define DEBUGINFO \
   cprintf("===============debug-info-start===================\n"); \
-  cprintf("proc::current = %s, id = %d\n", current->name, current->pid); \
+  cprintf("proc::current[getCurrentCPU()->id] = %s, id = %d\n", current[getCurrentCPU()->id]->name, current[getCurrentCPU()->id]->pid); \
   cprintf("ebp: \t%p\n", read_ebp()); \
   cprintf("*ebp: \t%p\n", *(int*) read_ebp());\
   cprintf("k-cr3: \t%p\n", KADDR(rcr3())); \
@@ -85,12 +88,17 @@ list_entry_t proc_list;
 // has list for process set based on pid
 static list_entry_t hash_list[HASH_LIST_SIZE];
 
-// idle proc
-struct proc_struct *idleproc = NULL;
+
+// idle proc should be replaced by guard_proc_smp
+//struct proc_struct *idleproc = NULL;
+
+// idle_multi_proc
+struct proc_struct *guard_proc_smp[NCPU] = {0};
+
 // init proc
 struct proc_struct *initproc = NULL;
 // current proc
-struct proc_struct *current = NULL;
+struct proc_struct *current[NCPU] = {0};
 
 static int nr_process = 0;
 
@@ -192,21 +200,12 @@ get_pid(void) {
 // proc_run - make process "proc" running on cpu
 // NOTE: before call switch_to, should load  base addr of "proc"'s new PDT
 void proc_run(struct proc_struct *proc) {
-//  if (proc->pid == 0) {
-//    cprintf("==================start===================\n");
-//    cprintf("proc::current = %s, id = %d\n", proc->name, proc->pid);
-//    cprintf("%p, %p\n", current->kstack, proc->kstack);
-//    cprintf("ebp: \t%p\n", proc->context.ebp);
-//    cprintf("*ebp: \t%p\n", *(int *) proc->context.ebp);
-//    cprintf("*esp0: \t%p\n", proc->kstack + KSTACKSIZE);
-//    cprintf("==================end======================\n");
-//  }
-  if (proc != current) {
+  if (proc != current[getCurrentCPU()->id]) {
     bool intr_flag;
-    struct proc_struct *prev = current, *next = proc;
+    struct proc_struct *prev = current[getCurrentCPU()->id], *next = proc;
     local_intr_save(intr_flag);
     {
-      current = proc;
+      current[getCurrentCPU()->id] = proc;
       load_esp0(next->kstack + KSTACKSIZE);
       lcr3(next->cr3);
       switch_to(&(prev->context), &(next->context));
@@ -220,7 +219,7 @@ void proc_run(struct proc_struct *proc) {
 //       after switch_to, the current proc will execute here.
 static void
 forkret(void) {
-  forkrets(current->tf);
+  forkrets(current[getCurrentCPU()->id]->tf);
 }
 
 // hash_proc - add proc into proc hash_list
@@ -253,8 +252,7 @@ find_proc(int pid) {
 // kernel_thread - create a kernel thread using "fn" function
 // NOTE: the contents of temp trapframe tf will be copied to 
 //       proc->tf in do_fork-->copy_thread function
-int
-kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags) {
+int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags) {
   struct trapframe tf;
   memset(&tf, 0, sizeof(struct trapframe));
   tf.tf_cs = KERNEL_CS;
@@ -306,7 +304,7 @@ put_pgdir(struct mm_struct *mm) {
 //         - if clone_flags & CLONE_VM, then "share" ; else "duplicate"
 static int
 copy_mm(uint32_t clone_flags, struct proc_struct *proc) {
-  struct mm_struct *mm, *oldmm = current->mm;
+  struct mm_struct *mm, *oldmm = current[getCurrentCPU()->id]->mm;
 
   /* current is a kernel thread */
   if (oldmm == NULL) {
@@ -367,7 +365,7 @@ copy_thread(struct proc_struct *proc, uintptr_t esp, struct trapframe *tf) {
 //copy the files_struct from current to proc
 static int
 copy_files(uint32_t clone_flags, struct proc_struct *proc) {
-  struct files_struct *filesp, *old_filesp = current->filesp;
+  struct files_struct *filesp, *old_filesp = current[getCurrentCPU()->id]->filesp;
   assert(old_filesp != NULL);
 
   if (clone_flags & CLONE_FS) {
@@ -413,6 +411,7 @@ put_files(struct proc_struct *proc) {
  */
 int
 do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
+  loadgs(SEG_KCPU << 3);
   int ret = -E_NO_FREE_PROC;
   struct proc_struct *proc;
   if (nr_process >= MAX_PROCESS) {
@@ -424,8 +423,8 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
   //    1. call alloc_proc to allocate a proc_struct
   proc = alloc_proc();
   if (proc == NULL) goto fork_out;
-  proc->parent = current;
-  current->wait_state = 0;
+  proc->parent = current[getCurrentCPU()->id];
+  current[getCurrentCPU()->id]->wait_state = 0;
   //    2. call setup_kstack to allocate a kernel stack for child process
   if (setup_kstack(proc) != 0) goto bad_fork_cleanup_proc;
   //    3. call copy_mm to dup OR share mm according clone_flag
@@ -461,16 +460,15 @@ do_fork(uint32_t clone_flags, uintptr_t stack, struct trapframe *tf) {
 //   1. call exit_mmap & put_pgdir & mm_destroy to free the almost all memory space of process
 //   2. set process' state as PROC_ZOMBIE, then call wakeup_proc(parent) to ask parent reclaim itself.
 //   3. call scheduler to switch to other process
-int
-do_exit(int error_code) {
-  if (current == idleproc) {
-    panic("idleproc exit.\n");
+int do_exit(int error_code) {
+  if (current[getCurrentCPU()->id] >= guard_proc_smp && current[getCurrentCPU()->id] < guard_proc_smp + NCPU) {
+    panic("guard proc exit.\n");
   }
-  if (current == initproc) {
+  if (current[getCurrentCPU()->id] == initproc) {
     panic("initproc exit.\n");
   }
 
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (mm != NULL) {
     lcr3(boot_cr3);
     if (mm_count_dec(mm) == 0) {
@@ -478,23 +476,23 @@ do_exit(int error_code) {
       put_pgdir(mm);
       mm_destroy(mm);
     }
-    current->mm = NULL;
+    current[getCurrentCPU()->id]->mm = NULL;
   }
-  put_files(current); //for LAB8
-  current->state = PROC_ZOMBIE;
-  current->exit_code = error_code;
+  put_files(current[getCurrentCPU()->id]); //for LAB8
+  current[getCurrentCPU()->id]->state = PROC_ZOMBIE;
+  current[getCurrentCPU()->id]->exit_code = error_code;
 
   bool intr_flag;
   struct proc_struct *proc;
   local_intr_save(intr_flag);
   {
-    proc = current->parent;
+    proc = current[getCurrentCPU()->id]->parent;
     if (proc->wait_state == WT_CHILD) {
       wakeup_proc(proc);
     }
-    while (current->cptr != NULL) {
-      proc = current->cptr;
-      current->cptr = proc->optr;
+    while (current[getCurrentCPU()->id]->cptr != NULL) {
+      proc = current[getCurrentCPU()->id]->cptr;
+      current[getCurrentCPU()->id]->cptr = proc->optr;
 
       proc->yptr = NULL;
       if ((proc->optr = initproc->cptr) != NULL) {
@@ -512,7 +510,7 @@ do_exit(int error_code) {
   local_intr_restore(intr_flag);
 
   schedule();
-  panic("do_exit will not return!! %d.\n", current->pid);
+  panic("do_exit will not return!! %d.\n", current[getCurrentCPU()->id]->pid);
 }
 
 //load_icode_read is used by load_icode in LAB8
@@ -533,7 +531,7 @@ load_icode_read(int fd, void *buf, size_t len, off_t offset) {
 static int
 load_icode(int fd, int argc, char **kargv) {
   assert(argc >= 0 && argc <= EXEC_MAX_ARG_NUM);
-  if (current->mm != NULL) {
+  if (current[getCurrentCPU()->id]->mm != NULL) {
     panic("load_icode: current->mm must be empty.\n");
   }
 
@@ -647,8 +645,8 @@ load_icode(int fd, int argc, char **kargv) {
 
   //(5) set current process's mm, sr3, and set CR3 reg = physical addr of Page Directory
   mm_count_inc(mm);
-  current->mm = mm;
-  current->cr3 = PADDR(mm->pgdir);
+  current[getCurrentCPU()->id]->mm = mm;
+  current[getCurrentCPU()->id]->cr3 = PADDR(mm->pgdir);
   lcr3(PADDR(mm->pgdir));
 
 
@@ -667,7 +665,7 @@ load_icode(int fd, int argc, char **kargv) {
   *(int*)stacktop = argc;
 
   //(6) setup trapframe for user environment
-  struct trapframe *tf = current->tf;
+  struct trapframe *tf = current[getCurrentCPU()->id]->tf;
   memset(tf, 0, sizeof(struct trapframe));
   /* LAB5:EXERCISE1 2012011295 */
   tf->tf_cs = USER_CS;
@@ -726,8 +724,10 @@ copy_kargv(struct mm_struct *mm, int argc, char **kargv, const char **argv) {
 // do_execve - call exit_mmap(mm)&pug_pgdir(mm) to reclaim memory space of current process
 //           - call load_icode to setup new memory space accroding binary prog.
 int do_execve(const char *name, int argc, const char **argv) {
+  loadgs(SEG_KCPU << 3);
+  cprintf("\nThis is run on CPU: #%d\n", getCurrentCPU()->id);
   static_assert(EXEC_MAX_ARG_LEN >= FS_MAX_FPATH_LEN);
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (!(argc >= 1 && argc <= EXEC_MAX_ARG_NUM)) {
     return -E_INVAL;
   }
@@ -742,7 +742,7 @@ int do_execve(const char *name, int argc, const char **argv) {
 
   lock_mm(mm);
   if (name == NULL) {
-    snprintf(local_name, sizeof(local_name), "<null> %d", current->pid);
+    snprintf(local_name, sizeof(local_name), "<null> %d", current[getCurrentCPU()->id]->pid);
   }
   else {
     if (!copy_string(mm, local_name, name, sizeof(local_name))) {
@@ -756,7 +756,7 @@ int do_execve(const char *name, int argc, const char **argv) {
   }
   path = argv[0];
   unlock_mm(mm);
-  files_closeall(current->filesp);
+  files_closeall(current[getCurrentCPU()->id]->filesp);
 
   /* sysfile_open will check the first argument path, thus we have to use a user-space pointer, and argv[0] may be incorrect */
   int fd;
@@ -770,14 +770,14 @@ int do_execve(const char *name, int argc, const char **argv) {
       put_pgdir(mm);
       mm_destroy(mm);
     }
-    current->mm = NULL;
+    current[getCurrentCPU()->id]->mm = NULL;
   }
   ret= -E_NO_MEM;;
   if ((ret = load_icode(fd, argc, kargv)) != 0) {
     goto execve_exit;
   }
   put_kargv(argc, kargv);
-  set_proc_name(current, local_name);
+  set_proc_name(current[getCurrentCPU()->id], local_name);
   return 0;
 
   execve_exit:
@@ -789,7 +789,7 @@ int do_execve(const char *name, int argc, const char **argv) {
 // do_yield - ask the scheduler to reschedule
 int
 do_yield(void) {
-  current->need_resched = 1;
+  current[getCurrentCPU()->id]->need_resched = 1;
   return 0;
 }
 
@@ -798,7 +798,7 @@ do_yield(void) {
 // NOTE: only after do_wait function, all resources of the child proces are free.
 int
 do_wait(int pid, int *code_store) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (code_store != NULL) {
     if (!user_mem_check(mm, (uintptr_t)code_store, sizeof(int), 1)) {
       return -E_INVAL;
@@ -811,7 +811,7 @@ do_wait(int pid, int *code_store) {
   haskid = 0;
   if (pid != 0) {
     proc = find_proc(pid);
-    if (proc != NULL && proc->parent == current) {
+    if (proc != NULL && proc->parent == current[getCurrentCPU()->id]) {
       haskid = 1;
       if (proc->state == PROC_ZOMBIE) {
         goto found;
@@ -819,7 +819,7 @@ do_wait(int pid, int *code_store) {
     }
   }
   else {
-    proc = current->cptr;
+    proc = current[getCurrentCPU()->id]->cptr;
     for (; proc != NULL; proc = proc->optr) {
       haskid = 1;
       if (proc->state == PROC_ZOMBIE) {
@@ -828,10 +828,10 @@ do_wait(int pid, int *code_store) {
     }
   }
   if (haskid) {
-    current->state = PROC_SLEEPING;
-    current->wait_state = WT_CHILD;
+    current[getCurrentCPU()->id]->state = PROC_SLEEPING;
+    current[getCurrentCPU()->id]->wait_state = WT_CHILD;
     schedule();
-    if (current->flags & PF_EXITING) {
+    if (current[getCurrentCPU()->id]->flags & PF_EXITING) {
       do_exit(-E_KILLED);
     }
     goto repeat;
@@ -839,8 +839,8 @@ do_wait(int pid, int *code_store) {
   return -E_BAD_PROC;
 
   found:
-  if (proc == idleproc || proc == initproc) {
-    panic("wait idleproc or initproc.\n");
+  if ((proc >= guard_proc_smp && proc < guard_proc_smp + NCPU) || proc == initproc) {
+    panic("wait guard_proc_smp or initproc.\n");
   }
   if (code_store != NULL) {
     *code_store = proc->exit_code;
@@ -891,7 +891,7 @@ kernel_execve(const char *name, const char **argv) {
 #define __KERNEL_EXECVE(name, path, ...) ({                         \
 const char *argv[] = {path, ##__VA_ARGS__, NULL};       \
                      cprintf("kernel_execve: pid = %d, name = \"%s\".\n",    \
-                             current->pid, name);                            \
+                             current[getCurrentCPU()->id]->pid, name);                            \
                      kernel_execve(name, argv);                              \
 })
 
@@ -954,52 +954,47 @@ init_main(void *arg) {
 
 // proc_init - set up the first kernel thread idleproc "idle" by itself and 
 //           - create the second kernel thread init_main
-void
-proc_init(void) {
+void proc_init(int cpuid) {
   int i;
-
   list_init(&proc_list);
+  if (cpuid == 0) initlock(&process_lock, "process_lock");
   for (i = 0; i < HASH_LIST_SIZE; i ++) {
     list_init(hash_list + i);
   }
 
-  if ((idleproc = alloc_proc()) == NULL) {
-    panic("cannot alloc idleproc.\n");
+  if ((guard_proc_smp[cpuid] = alloc_proc()) == NULL) {
+    panic("cannot alloc guard_proc.\n");
   }
-
-  idleproc->pid = 0;
-  idleproc->state = PROC_RUNNABLE;
-  idleproc->kstack = (uintptr_t)bootstack;
-  idleproc->need_resched = 1;
-
-  if ((idleproc->filesp = files_create()) == NULL) {
-    panic("create filesp (idleproc) failed.\n");
+  guard_proc_smp[cpuid]->pid = get_pid();
+  guard_proc_smp[cpuid]->state = PROC_RUNNABLE;
+  guard_proc_smp[cpuid]->kstack = (uintptr_t)bootstack;
+  guard_proc_smp[cpuid]->need_resched = 1;
+  if ((guard_proc_smp[cpuid]->filesp = files_create()) == NULL) {
+    panic("create filesp (guard_proc) failed.\n");
   }
-  files_count_inc(idleproc->filesp);
-
-  set_proc_name(idleproc, "idle");
+  files_count_inc(guard_proc_smp[cpuid]->filesp);
+  set_proc_name(guard_proc_smp[cpuid], "guard_proc");
   nr_process ++;
+  current[cpuid] = guard_proc_smp[cpuid];
+  assert(guard_proc_smp[getCurrentCPU()->id] != NULL && guard_proc_smp[getCurrentCPU()->id]->need_resched == 1);
+}
 
-  current = idleproc;
-
+void set_init_proc() {
   int pid = kernel_thread(init_main, NULL, 0);
   if (pid <= 0) {
     panic("create init_main failed.\n");
   }
-
+  cprintf("init proc: %d\n", pid);
   initproc = find_proc(pid);
   set_proc_name(initproc, "init");
-
-  assert(idleproc != NULL && idleproc->pid == 0);
-  assert(initproc != NULL && initproc->pid == 1);
 }
 
 // cpu_idle - at the end of kern_init, the first kernel thread idleproc will do below works
 void
 cpu_idle(void){
   while (1) {
-    if (current->need_resched) {
-//      cprintf("current: %s\n", current->name);
+//    cprintf("Where are other guys: %d, %d\n", getCurrentCPU()->id, current[getCurrentCPU()->id]->need_resched);
+    if (current[getCurrentCPU()->id]->need_resched) {
       schedule();
     }
   }
@@ -1010,8 +1005,8 @@ void
 lab6_set_priority(uint32_t priority)
 {
   if (priority == 0)
-    current->lab6_priority = 1;
-  else current->lab6_priority = priority;
+    current[getCurrentCPU()->id]->lab6_priority = 1;
+  else current[getCurrentCPU()->id]->lab6_priority = priority;
 }
 
 // do_sleep - set current process state to sleep and add timer with "time"
@@ -1023,14 +1018,12 @@ do_sleep(unsigned int time) {
   }
   bool intr_flag;
   local_intr_save(intr_flag);
-  timer_t __timer, *timer = timer_init(&__timer, current, time);
-  current->state = PROC_SLEEPING;
-  current->wait_state = WT_TIMER;
+  timer_t __timer, *timer = timer_init(&__timer, current[getCurrentCPU()->id], time);
+  current[getCurrentCPU()->id]->state = PROC_SLEEPING;
+  current[getCurrentCPU()->id]->wait_state = WT_TIMER;
   add_timer(timer);
   local_intr_restore(intr_flag);
-
   schedule();
-
   del_timer(timer);
   return 0;
 }

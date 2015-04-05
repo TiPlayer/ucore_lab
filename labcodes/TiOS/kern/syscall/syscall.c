@@ -19,7 +19,7 @@ sys_exit(uint32_t arg[]) {
 
 static int
 sys_fork(uint32_t arg[]) {
-  struct trapframe *tf = current->tf;
+  struct trapframe *tf = current[getCurrentCPU()->id]->tf;
   uintptr_t stack = tf->tf_esp;
   return do_fork(0, stack, tf);
 }
@@ -52,7 +52,7 @@ sys_kill(uint32_t arg[]) {
 
 static int
 sys_getpid(uint32_t arg[]) {
-  return current->pid;
+  return current[getCurrentCPU()->id]->pid;
 }
 
 static int
@@ -186,7 +186,7 @@ static int (*syscalls[])(uint32_t arg[]) = {
 
 void
 syscall(void) {
-  struct trapframe *tf = current->tf;
+  struct trapframe *tf = current[getCurrentCPU()->id]->tf;
   uint32_t arg[5];
   int num = tf->tf_regs.reg_eax;
   if (num >= 0 && num < NUM_SYSCALLS) {
@@ -202,6 +202,6 @@ syscall(void) {
   }
   print_trapframe(tf);
   panic("undefined syscall %d, pid = %d, name = %s.\n",
-      num, current->pid, current->name);
+      num, current[getCurrentCPU()->id]->pid, current[getCurrentCPU()->id]->name);
 }
 

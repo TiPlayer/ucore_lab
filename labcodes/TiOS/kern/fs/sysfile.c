@@ -19,7 +19,7 @@
 /* copy_path - copy path name */
 static int
 copy_path(char **to, const char *from) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   char *buffer;
   if ((buffer = kmalloc(FS_MAX_FPATH_LEN + 1)) == NULL) {
     return -E_NO_MEM;
@@ -59,7 +59,7 @@ sysfile_close(int fd) {
 
 /* sysfile_read - read file */
 int sysfile_read(int fd, void *base, size_t len) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (len == 0) {
     return 0;
   }
@@ -105,7 +105,7 @@ int sysfile_read(int fd, void *base, size_t len) {
 /* sysfile_write - write file */
 int
 sysfile_write(int fd, void *base, size_t len) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (len == 0) {
     return 0;
   }
@@ -159,7 +159,7 @@ sysfile_seek(int fd, off_t pos, int whence) {
 /* sysfile_fstat - stat file */
 int
 sysfile_fstat(int fd, struct stat *__stat) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   int ret;
   struct stat __local_stat, *stat = &__local_stat;
   if ((ret = file_fstat(fd, stat)) != 0) {
@@ -245,7 +245,7 @@ sysfile_unlink(const char *__path) {
 /* sysfile_get cwd - get current working directory */
 int
 sysfile_getcwd(char *buf, size_t len) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   if (len == 0) {
     return -E_INVAL;
   }
@@ -265,7 +265,7 @@ sysfile_getcwd(char *buf, size_t len) {
 /* sysfile_getdirentry - get the file entry in DIR */
 int
 sysfile_getdirentry(int fd, struct dirent *__direntp) {
-  struct mm_struct *mm = current->mm;
+  struct mm_struct *mm = current[getCurrentCPU()->id]->mm;
   struct dirent *direntp;
   if ((direntp = kmalloc(sizeof(struct dirent))) == NULL) {
     return -E_NO_MEM;

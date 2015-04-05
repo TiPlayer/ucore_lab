@@ -318,7 +318,7 @@ TARGETS: $(TARGETS)
 
 .DEFAULT_GOAL := TARGETS
 
-QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback -drive file=$(SFSIMG),media=disk,cache=writeback -smp 2
+QEMUOPTS = -hda $(UCOREIMG) -drive file=$(SWAPIMG),media=disk,cache=writeback -drive file=$(SFSIMG),media=disk,cache=writeback -smp 4
 
 .PHONY: qemu qemu-nox debug debug-nox monitor
 qemu-mon: $(UCOREIMG) $(SWAPIMG) $(SFSIMG)

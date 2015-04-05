@@ -13,14 +13,14 @@
  */
 static struct inode *
 get_cwd_nolock(void) {
-    return current->filesp->pwd;
+    return current[getCurrentCPU()->id]->filesp->pwd;
 }
 /*
  * set_cwd_nolock - set current working directory.
  */
 static void
 set_cwd_nolock(struct inode *pwd) {
-    current->filesp->pwd = pwd;
+  current[getCurrentCPU()->id]->filesp->pwd = pwd;
 }
 
 /*
@@ -28,14 +28,14 @@ set_cwd_nolock(struct inode *pwd) {
  */
 static void
 lock_cfs(void) {
-    lock_files(current->filesp);
+    lock_files(current[getCurrentCPU()->id]->filesp);
 }
 /*
  * unlock_cfs - unlock the fs related process on current process 
  */
 static void
 unlock_cfs(void) {
-    unlock_files(current->filesp);
+    unlock_files(current[getCurrentCPU()->id]->filesp);
 }
 
 /*

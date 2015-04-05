@@ -29,6 +29,7 @@ struct cpu {
 };
 
 extern struct cpu cpus[NCPU];
+extern struct cpu* cpu asm("%gs:0");
 extern int ncpu;
 
 // Per-CPU variables, holding pointers to the
@@ -39,7 +40,11 @@ extern int ncpu;
 // holding those two variables in the local cpu's struct cpu.
 // This is similar to how thread-local variables are implemented
 // in thread libraries such as Linux pthreads.
-extern struct cpu *cpu asm("%gs:0");       // &cpus[cpunum()]    //TODO: asm?
+static inline struct cpu* getCurrentCPU() {
+  asm volatile("movw %0, %%gs" : : "r" (SEG_KCPU << 3));
+  extern struct cpu* cpu asm("%gs:0");
+  return cpu;
+}
 extern struct proc *proc asm("%gs:4");     // cpus[cpunum()].proc
 
 // process's state in his life cycle
@@ -115,9 +120,11 @@ struct proc_struct {
 #define le2proc(le, member)         \
     to_struct((le), struct proc_struct, member)
 
-extern struct proc_struct *idleproc, *initproc, *current;
+extern struct proc_struct *initproc, *current[NCPU];
+extern struct proc_struct *guard_proc_smp[NCPU];
 
-void proc_init(void);
+void proc_init(int cpuid);
+void set_init_proc();
 void proc_run(struct proc_struct *proc);
 int kernel_thread(int (*fn)(void *), void *arg, uint32_t clone_flags);
 
@@ -135,5 +142,17 @@ int do_kill(int pid);
 //FOR LAB6, set the process's priority (bigger value will get more CPU time) 
 void lab6_set_priority(uint32_t priority);
 int do_sleep(unsigned int time);
+
+
+static inline bool not_equal_to_guard(struct proc_struct* proc) {
+  int i;
+  for (i = 0; i < NCPU; i++) {
+    if (proc == guard_proc_smp[i]) {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 #endif /* !__KERN_PROCESS_PROC_H__ */
 

@@ -17,7 +17,7 @@
 // get_fd_array - get current process's open files table
 static struct file *
 get_fd_array(void) {
-  struct files_struct *filesp = current->filesp;
+  struct files_struct *filesp = current[getCurrentCPU()->id]->filesp;
   assert(filesp != NULL && files_count(filesp) > 0);
   return filesp->fd_array;
 }

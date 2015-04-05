@@ -94,8 +94,8 @@ static inline void
 lock_mm(struct mm_struct *mm) {
     if (mm != NULL) {
         down(&(mm->mm_sem));
-        if (current != NULL) {
-            mm->locked_by = current->pid;
+        if (current[getCurrentCPU()->id] != NULL) {
+            mm->locked_by = current[getCurrentCPU()->id]->pid;
         }
     }
 }

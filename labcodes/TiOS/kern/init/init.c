@@ -51,7 +51,7 @@ int kern_init(void) {
   cprintf("============================\n");
   vmm_init();                 // init virtual memory management
   sched_init();               // init scheduler
-  proc_init();                // init process table
+  proc_init(0);                // init process table
   ide_init();                 // init ide devices
   swap_init();                // init swap
   fs_init();                  // init fs
@@ -59,8 +59,9 @@ int kern_init(void) {
 //  clock_init();    // init clock interrupt
   startothers();
   cprintf("============================\n");
-  cprintf("SMP Coming!!!!!!, %p\n", current);
+  cprintf("SMP Coming!!!!!!, %p\n", current[getCurrentCPU()->id]);
   cprintf("============================\n");
+  set_init_proc();
   intr_enable();              // enable irq interrupt
   //LAB1: CAHLLENGE 1 If you try to do it, uncomment lab1_switch_test()
   // user/kernel mode switch test
@@ -129,14 +130,10 @@ lab1_switch_test(void) {
 
 // Common CPU setup code.
 
-static void  mpmain(void) {
-  cprintf("cpu%d: starting\n", cpu->id);
-  xchg(&cpu->started, 1); // tell startothers() we're up
-  if (cpu->id == 0) {
-    cpu_idle();
-  } else {
-    while (1) {}
-  }
+static void mpmain(void) {
+  cprintf("================cpu%d: starting=================\n", getCurrentCPU()->id);
+  xchg(&getCurrentCPU()->started, 1); // tell startothers() we're up
+  cpu_idle();
 }
 
 void enable_paging(uintptr_t pgdir) {
@@ -152,14 +149,12 @@ pde_t entrypgdir[];  // For entry.S
 // Other CPUs jump here from entryother.S.
 static void mpenter(int cpuid) {
   cprintf("Trying to wake up %d# CPU\n", cpuid);
-  cpu[cpuid].id = cpuid;
-  cprintf("pgdir: %p\n", boot_pgdir);
+  cpus[cpuid].id = cpuid;
   pmm_init_second(cpuid);
-  cprintf("ap: pmm_init done\n");
   idt_init();
-  cprintf("ap: idt init done\n");
   lapicinit();
-  cprintf("ap: lapicinit done\n");
+  proc_init(cpuid);
+  intr_enable();
   mpmain();
 }
 
