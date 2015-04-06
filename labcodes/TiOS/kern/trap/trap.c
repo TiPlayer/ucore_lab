@@ -208,7 +208,7 @@ trap_dispatch(struct trapframe *tf) {
       break;
     case IRQ_OFFSET + IRQ_TIMER:
       ticks++;
-      if (ticks % 1000 == 0) cprintf("This is CPU #%d, Current is #%d\n", getCurrentCPU()->id, current[getCurrentCPU()->id]->pid);
+//      if (ticks % 1000 == 0) cprintf("This is CPU #%d, Current is #%d\n", getCurrentCPU()->id, current[getCurrentCPU()->id]->pid);
       assert(current[getCurrentCPU()->id] != NULL);
       run_timer_list();
       lapiceoi();

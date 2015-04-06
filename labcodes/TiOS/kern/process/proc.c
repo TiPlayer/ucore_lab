@@ -670,6 +670,7 @@ load_icode(int fd, int argc, char **kargv) {
   /* LAB5:EXERCISE1 2012011295 */
   tf->tf_cs = USER_CS;
   tf->tf_ds = tf->tf_es = tf->tf_ss = USER_DS;
+  tf->tf_gs = CPU_GS;
   tf->tf_esp = stacktop;
   tf->tf_eip = elf->e_entry;
   tf->tf_eflags = FL_IF;
@@ -933,8 +934,8 @@ init_main(void *arg) {
   if (pid <= 0) {
     panic("create user_main failed.\n");
   }
-//  extern void check_sync(void);
-//  check_sync();                // check philosopher sync problem
+  extern void check_sync(void);
+  check_sync();                // check philosopher sync problem
 
   while (do_wait(0, NULL) == 0) {
     schedule();

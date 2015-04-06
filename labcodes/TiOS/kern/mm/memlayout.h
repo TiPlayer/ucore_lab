@@ -6,10 +6,10 @@
 /* global segment number */
 #define SEG_KTEXT   1
 #define SEG_KDATA   2
-#define SEG_KCPU    3  // kernel per-cpu data
-#define SEG_UTEXT   4
-#define SEG_UDATA   5
-#define SEG_TSS     6
+#define SEG_UTEXT   3
+#define SEG_UDATA   4
+#define SEG_TSS     5
+#define SEG_KCPU    6  // kernel per-cpu data
 
 
 /* global descrptor numbers */

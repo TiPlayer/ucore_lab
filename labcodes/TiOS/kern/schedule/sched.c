@@ -87,6 +87,7 @@ void schedule(void) {
   loadgs(SEG_KCPU << 3);
   bool intr_flag;
   struct proc_struct *next;
+//  cprintf("CPU:#%d, current:#%d\n", getCurrentCPU()->id, current[getCurrentCPU()->id]->pid);
   {
     current[getCurrentCPU()->id]->need_resched = 0;
     acquire(&process_lock);
