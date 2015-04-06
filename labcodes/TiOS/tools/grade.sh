@@ -428,7 +428,7 @@ run_test -prog 'pgdir' -check default_check                                     
 
 run_test -prog 'yield' -check default_check                                          \
       - 'kernel_execve: pid = ., name = "yield".*'               \
-        'Hello, I am process *'                                \
+        'Hello, I am process ..'                                \
       - 'Back in process ., iteration 0.'                       \
       - 'Back in process ., iteration 1.'                       \
       - 'Back in process ., iteration 2.'                       \
